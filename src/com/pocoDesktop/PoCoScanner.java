@@ -8,12 +8,14 @@ import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -346,6 +348,14 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 	}
 
 	public static void main(String[] args) { 
+		File writeTo = new File("PoCoPolicies.aj");
+		//File inputfile = new File("a.txt");
+	      try {
+			Scanner scan = new Scanner(writeTo);
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		new PoCoScanner();
 	}
 
