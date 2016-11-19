@@ -37,6 +37,7 @@ import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SpringLayout;
 import javax.swing.SwingUtilities;
@@ -53,11 +54,12 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 	private SpringLayout fileSelectionLayout;
 	private JFrame appframe;
 
-	private JPanel fileSelectTabPanel;
+	private JPanel mainPanel;
 
 	private JList<File> fileList;
 	private DefaultListModel<File> filesToScan;
 
+	private JPanel jarClassFilePanel;
 	private JPanel fileButtonPanel;
 	private JButton addFileButton;
 	private JButton removeFileButton;
@@ -69,12 +71,13 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 	private JButton loadPolicyBtn;
 
 	private JButton generateButton;
-	private JLabel messageLabel;
+	private JTextArea hintTextArea;
 
 	private JList<String> regexList;
 	private JList<String> methodList;
 	private DefaultListModel<String> list4Methods;
 	
+	private JPanel methodListPanel;
 	private JPanel statusPanel;
 
 	private JFileChooser classFileChooser;
@@ -131,7 +134,7 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 				pocoPolicyField.setToolTipText(pocoFile.getPath());
 			}
 		} else if (e.getSource() == generateButton) {
-			messageLabel.setText("Analysis...");
+			hintTextArea.setText("Analysis...");
 			addFileButton.setEnabled(false);
 			removeFileButton.setEnabled(false);
 			loadPolicyBtn.setEnabled(false);
@@ -148,7 +151,7 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 			for(String sig: sigs4Monitor) {
 				list4Methods.addElement(sig);
 			}
-			messageLabel.setText("Total "+sigs4Monitor.size() + "security-relevant events");
+			hintTextArea.setText("Total "+sigs4Monitor.size() + "security-relevant events");
 			if(sigs4Monitor.size()>0) {
 				methodList.setEnabled(true);
 				genAjFileBtn.setEnabled(true);
@@ -191,8 +194,8 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 		classFileChooser = new JFileChooser();
 		classFileChooser.setDialogTitle("Add Class Files");
 		classFileChooser.setApproveButtonText("Add");
-		FileNameExtensionFilter fileFilter = new FileNameExtensionFilter(
-				"PoCo Policy files", "poco");
+		FileNameExtensionFilter fileFilter = new FileNameExtensionFilter("Compiled Java Classes",
+                "class", "jar");
 		classFileChooser.setFileFilter(fileFilter);
 		classFileChooser.setMultiSelectionEnabled(true);
 		classFileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
@@ -200,14 +203,14 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 		pocoFileChooser = new JFileChooser();
 		pocoFileChooser.setDialogTitle("Load PoCo Policy");
 		pocoFileChooser.setApproveButtonText("Add");
-		FileNameExtensionFilter pocoFileFilter = new FileNameExtensionFilter("PoCo Policy", "poco");
+		FileNameExtensionFilter pocoFileFilter = new FileNameExtensionFilter("PoCo Policy files", "poco");
 		pocoFileChooser.setFileFilter(pocoFileFilter);
 		pocoFileChooser.setMultiSelectionEnabled(false);
 		pocoFileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
 
 		fileSelectionLayout = new SpringLayout();
-		fileSelectTabPanel = new JPanel(fileSelectionLayout);
-		fileSelectTabPanel.setOpaque(false);
+		mainPanel = new JPanel(fileSelectionLayout);
+		mainPanel.setOpaque(false);
 
 		filesToScan = new DefaultListModel<>();
 
@@ -216,14 +219,16 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 		fileList.setCellRenderer(new FileRenderer());
 
 		fileListScroller = new JScrollPane(fileList);
-
 		addFileButton = new JButton("Add File");
 		removeFileButton = new JButton("Remove File");
 		removeFileButton.setEnabled(false);
-
 		addFileButton.addActionListener(this);
 		removeFileButton.addActionListener(this);
 
+		jarClassFilePanel = new JPanel(new BorderLayout());
+		jarClassFilePanel.setBorder(BorderFactory.createTitledBorder("Target Application's Jar Files"));
+		jarClassFilePanel.add(fileListScroller);
+ 
 		fileButtonPanel = new JPanel();
 		fileButtonPanel.add(addFileButton);
 		fileButtonPanel.add(removeFileButton);
@@ -244,13 +249,15 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 		generateButton = new JButton("Extract security-relevant Events");
 		generateButton.addActionListener(this);
 
-		messageLabel = new JLabel();
+		hintTextArea = new JTextArea();
+		hintTextArea.setBorder(null);
+		hintTextArea.setText("testing...testing");
 
 		// Create panel for generation status
-		statusPanel = new JPanel();
-		statusPanel.setOpaque(false);
-		statusPanel.setBorder(BorderFactory.createTitledBorder("Security-Relevant methods:"));
-		statusPanel.setEnabled(false); 
+		methodListPanel = new JPanel();
+		methodListPanel.setOpaque(false);
+		methodListPanel.setBorder(BorderFactory.createTitledBorder("Security-Relevant methods:"));
+		methodListPanel.setEnabled(false); 
 		
 		list4Methods = new DefaultListModel<String>();
 		methodList = new JList<String>(list4Methods);
@@ -260,55 +267,66 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 		
 		JScrollPane scrollPane = new JScrollPane();
 		scrollPane.setViewportView(methodList);
-		scrollPane.setPreferredSize(new Dimension(435,345));
-		statusPanel.add(scrollPane, BorderLayout.NORTH);
+		scrollPane.setPreferredSize(new Dimension(435,325));
+		methodListPanel.add(scrollPane, BorderLayout.NORTH);
 		
 		//gen Aj file pane
 		genAjFileBtn = new JButton("Generate AJ file");
 		genAjFileBtn.addActionListener(this);
 		genAjFileBtn.setEnabled(false);
 		genAjFileBtnPanel = new JPanel();
-		genAjFileBtnPanel.add(messageLabel);
 		genAjFileBtnPanel.add(genAjFileBtn);
 		genAjFileBtnPanel.setOpaque(false);
 		
+		statusPanel = new JPanel(new BorderLayout());
+		statusPanel.setOpaque(false);
+		statusPanel.setBorder(BorderFactory.createTitledBorder("Generation Stats"));
+		statusPanel.add(hintTextArea, BorderLayout.NORTH);
+		
 		setLayout();
-		appframe.add(fileSelectTabPanel);
+		appframe.add(mainPanel);
+		appframe.setResizable(false);
 		appframe.setVisible(true);
 	}
 
 	private void setLayout() {
-		fileSelectTabPanel.add(statusPanel);
+		mainPanel.add(jarClassFilePanel);
+		fileSelectionLayout.putConstraint(SpringLayout.NORTH, jarClassFilePanel, 10, SpringLayout.NORTH, mainPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.SOUTH, jarClassFilePanel, 0, SpringLayout.NORTH, fileButtonPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.WEST, jarClassFilePanel, 10, SpringLayout.WEST, mainPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.EAST, jarClassFilePanel, -90, SpringLayout.HORIZONTAL_CENTER, mainPanel);
 
-		fileSelectTabPanel.add(fileListScroller);
-		fileSelectionLayout.putConstraint(SpringLayout.WEST, fileListScroller, 10, SpringLayout.WEST, fileSelectTabPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.NORTH, fileListScroller, 10, SpringLayout.NORTH, fileSelectTabPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.SOUTH, fileListScroller, -15, SpringLayout.NORTH, fileButtonPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.EAST, fileListScroller, -120, SpringLayout.HORIZONTAL_CENTER, fileSelectTabPanel);
+		mainPanel.add(fileButtonPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.SOUTH, fileButtonPanel, -175, SpringLayout.SOUTH, mainPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.WEST, fileButtonPanel,  75, SpringLayout.WEST, mainPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.EAST, fileButtonPanel, -70, SpringLayout.HORIZONTAL_CENTER, mainPanel);
+ 	
+		mainPanel.add(pocoPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.SOUTH, pocoPanel, -80, SpringLayout.SOUTH, mainPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.WEST, pocoPanel, 10, SpringLayout.WEST, mainPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.EAST, pocoPanel, -90, SpringLayout.HORIZONTAL_CENTER, mainPanel);
 
-		fileSelectTabPanel.add(fileButtonPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.SOUTH, fileButtonPanel,-15, SpringLayout.SOUTH, fileSelectTabPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.WEST, fileButtonPanel,  15, SpringLayout.WEST, fileSelectTabPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.EAST, fileButtonPanel, -75, SpringLayout.HORIZONTAL_CENTER, fileSelectTabPanel);
-
-		fileSelectTabPanel.add(pocoPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.WEST, pocoPanel, -90, SpringLayout.HORIZONTAL_CENTER, fileSelectTabPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.EAST, pocoPanel, -15, SpringLayout.EAST, fileSelectTabPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.NORTH, pocoPanel, 10, SpringLayout.NORTH, fileSelectTabPanel);
-		
-		//set layout for the generateButton
-		fileSelectTabPanel.add(generateButton);
-		fileSelectionLayout.putConstraint(SpringLayout.NORTH, generateButton, 5, SpringLayout.SOUTH, pocoPanel);
-	    fileSelectionLayout.putConstraint(SpringLayout.EAST, generateButton,-15, SpringLayout.EAST, fileSelectTabPanel);
-
-		fileSelectionLayout.putConstraint(SpringLayout.WEST, statusPanel, -90, SpringLayout.HORIZONTAL_CENTER, fileSelectTabPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.EAST, statusPanel, -15, SpringLayout.EAST, fileSelectTabPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.NORTH, statusPanel, 40, SpringLayout.SOUTH, pocoPanel); 
+		mainPanel.add(generateButton);
+		fileSelectionLayout.putConstraint(SpringLayout.SOUTH, generateButton,-45, SpringLayout.SOUTH, mainPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.WEST, generateButton, 68, SpringLayout.WEST, mainPanel);
+	    //fileSelectionLayout.putConstraint(SpringLayout.EAST, generateButton,-100, SpringLayout.HORIZONTAL_CENTER, mainPanel);
+ 
+		mainPanel.add(methodListPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.WEST, methodListPanel, -80, SpringLayout.HORIZONTAL_CENTER, mainPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.EAST, methodListPanel, -15, SpringLayout.EAST, mainPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.NORTH, methodListPanel, -354, SpringLayout.SOUTH, jarClassFilePanel); 
+		fileSelectionLayout.putConstraint(SpringLayout.SOUTH, methodListPanel, 0, SpringLayout.SOUTH, jarClassFilePanel); 
 	
-		fileSelectTabPanel.add(genAjFileBtnPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.SOUTH,genAjFileBtnPanel, 50, SpringLayout.SOUTH, statusPanel);
-		fileSelectionLayout.putConstraint(SpringLayout.EAST, genAjFileBtnPanel, -10,SpringLayout.EAST, fileSelectTabPanel);
-			    
+		mainPanel.add(genAjFileBtnPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.SOUTH,genAjFileBtnPanel, -175, SpringLayout.SOUTH, mainPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.EAST, genAjFileBtnPanel, -10,SpringLayout.EAST, mainPanel);
+		
+		mainPanel.add(statusPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.NORTH, statusPanel, 10, SpringLayout.SOUTH, genAjFileBtnPanel); 
+		fileSelectionLayout.putConstraint(SpringLayout.WEST, statusPanel, 325, SpringLayout.WEST, mainPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.EAST, statusPanel, -20,SpringLayout.EAST, mainPanel);
+		fileSelectionLayout.putConstraint(SpringLayout.SOUTH,statusPanel, -50, SpringLayout.SOUTH, mainPanel);
+	
 	}
 
 	private static void scanJARFile(File toScan, LinkedHashSet<String> methods) {
