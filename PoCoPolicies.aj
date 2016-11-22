@@ -23,7 +23,7 @@ public aspect PoCoPolicies {
         return new SRE(null, Action.AnyAction); 
     }
 
-    pointcut PointCut0():
+    pointcut PointCut3():
         call(java.net.ServerSocket.new(int)) || 
 		call(java.net.Socket.new(java.net.InetAddress,int,..)) || 
 		call(java.io.RandomAccessFile.new(File, String)) || 
@@ -47,7 +47,7 @@ public aspect PoCoPolicies {
 		call(* com.sun.mail.smtp.SMTPTransport.protocolConnect(java.lang.String,int,..)) || 
 		call(* java.net.MulticastSocket.joinGroup(java.net.InetAddress)) && !within(com.poco.runtime.*);
 
-    Object around(): PointCut0() {
+    Object around(): PointCut3() {
         root.query(new Action(thisJoinPoint));
         if(root.hasRes4Action())
             return root.getRes4Action();
@@ -55,20 +55,20 @@ public aspect PoCoPolicies {
             return proceed();
     }
 
-    pointcut PointCut1(Method run):
+    pointcut PointCut4(Method run):
         target(run) &&call(Object Method.invoke(..));
 
-    Object around(Method run): PointCut1(run) {
+    Object around(Method run): PointCut4(run) {
         Object ret = proceed(run);
         Result promRes = new Result(run).setRes(ret);
         root.query(promRes);
         return promRes.getEvtRes();
     }
 
-    pointcut PointCut2(Constructor run):
+    pointcut PointCut5(Constructor run):
         target(run) && call(* Constructor.newInstance(..));
 
-    Object around(Constructor run): PointCut2(run) {
+    Object around(Constructor run): PointCut5(run) {
         Object ret = proceed(run);
         Result promRes = new Result(run).setRes(ret);
         root.query(promRes);
