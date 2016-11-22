@@ -12,20 +12,14 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Enumeration;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Scanner;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
@@ -45,6 +39,8 @@ import javax.swing.SwingWorker;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
+
+import org.objectweb.asm.ClassReader;
 
 public class PoCoScanner implements ActionListener, ListSelectionListener, ItemListener {
 	private static final int NUM_THREADS = 4;
@@ -87,7 +83,7 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 	private JPanel genAjFileBtnPanel;
 	private JButton genAjFileBtn;
 
-	private LinkedHashMap<String, ArrayList<String>> generatedMappings;
+	private LinkedHashSet<String> generatedMappings;
 
 	private File pocoFile = null;
 	
@@ -140,6 +136,11 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 			loadPolicyBtn.setEnabled(false);
 			generateButton.setEnabled(false);
 			
+			//step 1: extract java file
+			File[] files = new File[filesToScan.size()];
+            filesToScan.copyInto(files);
+            (new JavaFileLoader(files)).execute();
+
 			String path = "/Users/yan/Desktop/examplePolicies/";
 			extractHandler = new ExtactAllSigs(path);
 			extractHandler.extract();
@@ -149,6 +150,7 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 			sigs4Monitor = sigs4Act;
 			sigs4Monitor.addAll(sigs4Res);
 			for(String sig: sigs4Monitor) {
+				//if()
 				list4Methods.addElement(sig);
 			}
 			hintTextArea.setText("Total "+sigs4Monitor.size() + "security-relevant events");
@@ -171,9 +173,9 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 			return;
 		
 		String expr = regexList.getSelectedValue();
-		ArrayList<String> mappedMethods = generatedMappings.get(expr);
-		methodList.setListData(mappedMethods.toArray(new String[0]));
-		selectedRegexMethodCountLabel.setText("Count: " + mappedMethods.size());
+//		ArrayList<String> mappedMethods = generatedMappings.get(expr);
+//		methodList.setListData(mappedMethods.toArray(new String[0]));
+		//selectedRegexMethodCountLabel.setText("Count: " + mappedMethods.size());
 	}
 
 	public void generateComplete() {
@@ -340,24 +342,18 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 				String elementName = entry.getName();
 				int extensionStart = elementName.lastIndexOf('.');
 
-				if (extensionStart < 0) {
-					continue;
-				}
+				if (extensionStart < 0)  continue;
 
-				String extension = elementName.substring(elementName
-						.lastIndexOf('.'));
+				String extension = elementName.substring(elementName.lastIndexOf('.'));
 
-				if (extension.equals(".class")) {
-					jarClassFiles.add(entry);
-				}
+				if (extension.equals(".class"))  jarClassFiles.add(entry);
 			}
 
-			// // Parse each .class file
-			// for(JarEntry classFile : jarClassFiles) {
-			// ClassReader reader = new
-			// ClassReader(jarFile.getInputStream(classFile));
-			// reader.accept(new MethodExtractor(methods), 0);
-			// }
+			// Parse each .class file
+			 for(JarEntry classFile : jarClassFiles) {
+				 ClassReader reader = new ClassReader(jarFile.getInputStream(classFile));
+				 reader.accept(new MethodExtractor(methods), 0);
+			 }
 		} catch (IOException e) {
 			System.out.println("\n\nERROR reading JAR file!");
 			System.out.println(e.getMessage());
@@ -383,18 +379,16 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 						JOptionPane.WARNING_MESSAGE);
 	}
 
-	private class JavaFileLoader extends SwingWorker<LinkedHashMap<String, ArrayList<String>>, Void> {
+	private class JavaFileLoader extends SwingWorker<LinkedHashSet<String>, Void> {
 		private File[] javaFiles = null;
-		private File pocoFileToScan = null;
+		//private File pocoFileToScan = null;
 		private boolean runtimeBoundVar = false;
 
-		public JavaFileLoader(File[] javaFilesToScan, File pocoFileToScan) {
-			javaFiles = javaFilesToScan;
-			this.pocoFileToScan = pocoFileToScan;
-		}
+		public JavaFileLoader(File[] javaFilesToScan) {
+			javaFiles = javaFilesToScan; }
 
 		@Override
-		public LinkedHashMap<String, ArrayList<String>> doInBackground() {
+		public LinkedHashSet<String> doInBackground() {
 			LinkedHashSet<String> methods = new LinkedHashSet<>();
 
 			for (File toScan : javaFiles) {
@@ -405,11 +399,10 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 					scanJARFile(toScan, methods);
 				} else {
 					try (FileInputStream classFile = new FileInputStream(toScan)) {
-						// ClassReader reader = new ClassReader(classFile);
-						// reader.accept(new MethodExtractor(methods), 0);
+						 ClassReader reader = new ClassReader(classFile);
+						 reader.accept(new MethodExtractor(methods), 0);
 					} catch (Exception e) {
-						System.out.format(
-								"ERROR: Problem reading file \"%s\"\n",
+						System.out.format("ERROR: Problem reading file \"%s\"\n",
 								toScan.getName());
 						System.out.println(e.getMessage());
 						continue;
@@ -417,62 +410,7 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 				}
 			}
 
-			String[] regexes = new String[0];
-
-			if (pocoFileToScan == null) {
-				return null;
-			}
-
-			try {
-				extractHandler.extract();
-			} catch (Exception ex) {
-				ex.printStackTrace();
-				System.exit(-1);
-			}
-
-			LinkedHashMap<String, ArrayList<String>> mappings = new LinkedHashMap<>(regexes.length);
-
-			final int numRegexes = regexes.length;
-			final int regexPerThread = (int) Math.ceil((double) numRegexes / (double) NUM_THREADS);
-
-			ArrayList<MapGenerator> toRun = new ArrayList<>(NUM_THREADS);
-
-			int regexLeft = numRegexes;
-			for (int i = 0; i < NUM_THREADS; i++) {
-				int numToScan;
-
-				if (regexLeft < regexPerThread) {
-					numToScan = regexLeft;
-				} else {
-					numToScan = regexPerThread;
-				}
-
-				toRun.add(new MapGenerator(methods, regexes,
-						i * regexPerThread, numToScan));
-
-				regexLeft -= numToScan;
-			}
-
-			List<Future<LinkedHashMap<String, ArrayList<String>>>> futures;
-
-			try {
-				futures = pool.invokeAll(toRun);
-			} catch (InterruptedException e) {
-				System.out.println("ERROR in MapGenerator thread");
-				e.printStackTrace();
-				return null;
-			}
-
-			for (Future<LinkedHashMap<String, ArrayList<String>>> future : futures) {
-				try {
-					mappings.putAll(future.get());
-				} catch (InterruptedException | ExecutionException e) {
-					e.printStackTrace();
-					return null;
-				}
-			}
-
-			return mappings;
+			return methods;
 		}
 
 		@Override
@@ -491,40 +429,4 @@ public class PoCoScanner implements ActionListener, ListSelectionListener, ItemL
 			generateComplete();
 		}
 	}
-
-	private class MapGenerator implements Callable<LinkedHashMap<String, ArrayList<String>>> {
-		private final int startIndex;
-		private final int numMaps;
-		private final String[] regexList;
-		private final LinkedHashSet<String> methodList;
-
-		public MapGenerator(LinkedHashSet<String> methodList,
-				String[] regexList, int startIndex, int numMaps) {
-			this.startIndex = startIndex;
-			this.numMaps = numMaps;
-			this.regexList = regexList;
-			this.methodList = methodList;
-		}
-
-		@Override
-		public LinkedHashMap<String, ArrayList<String>> call() {
-			LinkedHashMap<String, ArrayList<String>> maps = new LinkedHashMap<>(numMaps);
-
-			for (int i = startIndex; i < startIndex + numMaps; i++) {
-				String regex = regexList[i];
-				Pattern pat = Pattern.compile(regex);
-				ArrayList<String> mappedMethods = new ArrayList<>();
-
-				for (String methodCall : methodList) {
-					Matcher match = pat.matcher(methodCall);
-					if (match.find()) 
-						mappedMethods.add(methodCall);
-				}
-
-				maps.put(regex, mappedMethods);
-			}
-			return maps;
-		}
-	}
- 
 }
